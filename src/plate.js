@@ -7,100 +7,101 @@ export function plateGeometry(size=256){
  const move=(x,y)=>shape.moveTo(...xy(x,y));const line=(x,y)=>shape.lineTo(...xy(x,y));const quad=(cx,cy,x,y)=>shape.quadraticCurveTo(...xy(cx,cy),...xy(x,y));
  move(320,284);line(669,284);line(697,255);line(900,255);line(929,284);line(1278,284);quad(1311,284,1311,317);line(1311,1316);quad(1311,1347,1280,1347);line(626,1347);line(581,1306);line(320,1306);quad(289,1306,289,1275);line(289,316);quad(289,284,320,284);
  const slot=new THREE.Path();const pts=[[714,278],[884,278],[884,284],[714,284]];pts.forEach(([x,y],i)=>i?slot.lineTo(...xy(x,y)):slot.moveTo(...xy(x,y)));slot.closePath();shape.holes.push(slot);
- const geo=new THREE.ExtrudeGeometry(shape,{depth:.65,bevelEnabled:false,curveSegments:12});geo.translate(0,0,-.7);
- const pos=geo.getAttribute('position'),uv=geo.getAttribute('uv');for(let i=0;i<pos.count;i++)uv.setXY(i,(pos.getX(i)/scale+800)/1600,(pos.getY(i)/scale+800)/1600);uv.needsUpdate=true;
+ const geo=new THREE.ExtrudeGeometry(shape,{depth:.65,bevelEnabled:true,bevelThickness:.12,bevelSize:.25,bevelOffset:-.25,bevelSegments:2,curveSegments:12});geo.translate(0,0,-.82);
+ const pos=geo.getAttribute('position'),uv=geo.getAttribute('uv');for(let i=0;i<pos.count;i++)uv.setXY(i,THREE.MathUtils.clamp((pos.getX(i)/scale+800)/1600,0,1),THREE.MathUtils.clamp((pos.getY(i)/scale+800)/1600,0,1));uv.needsUpdate=true;
  return geo;
 }
 
-// Deterministic PRNG so every reload shows the same powder-coat grain.
-function mulberry32(seed){let a=seed>>>0;return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
-function makeValueNoise(seed){
- const rand=mulberry32(seed),grid=new Float32Array(257*257);
- for(let i=0;i<grid.length;i++)grid[i]=rand();
- const at=(ix,iy)=>grid[((iy&255)*256)+(ix&255)];
- const smooth=t=>t*t*(3-2*t);
- return(x,y)=>{
-  const ix=Math.floor(x),iy=Math.floor(y),fx=smooth(x-ix),fy=smooth(y-iy);
-  const a=at(ix,iy),b=at(ix+1,iy),c=at(ix,iy+1),d=at(ix+1,iy+1);
-  return a+(b-a)*fx+(c-a)*fy+(a-b-c+d)*fx*fy;
- };
-}
-function fbm(noise,x,y,octaves=4){let sum=0,amp=.55,freq=1,norm=0;for(let i=0;i<octaves;i++){sum+=noise(x*freq,y*freq)*amp;norm+=amp;amp*=.5;freq*=2.07;}return sum/norm;}
-
-function hexToRgb(hex){const n=parseInt(hex.slice(1),16);return[(n>>16)&255,(n>>8)&255,n&255];}
-
 /**
- * Procedural powder-coated PEI surface: broad mottling + fine grain + sparse pits.
- * Produces a colour map, a bump map and a roughness map with proper mipmaps,
- * replacing the blurry stretched product photo that caused grazing-angle moiré.
+ * Silk-screened artwork in the same 1600-square frame as the outline
+ * (canvas y grows downward exactly like the reference image).
  */
-function makePeiTextures(renderer,baseHex,variant){
- const size=512,noise=makeValueNoise(variant==='smooth'?7123:4242),rand=mulberry32(variant==='smooth'?99:12345);
- const colorCanvas=document.createElement('canvas');colorCanvas.width=colorCanvas.height=size;
- const bumpCanvas=document.createElement('canvas');bumpCanvas.width=bumpCanvas.height=size;
- const cctx=colorCanvas.getContext('2d'),bctx=bumpCanvas.getContext('2d');
- const cImg=cctx.createImageData(size,size),bImg=bctx.createImageData(size,size);
- const [br,bg,bb]=hexToRgb(baseHex);
- const grainStrength=variant==='smooth'?4:10,mottle=variant==='smooth'?3:9,pitChance=variant==='smooth'?.0003:.0022;
- for(let y=0;y<size;y++)for(let x=0;x<size;x++){
-  const i=(y*size+x)*4;
-  const broad=(fbm(noise,x/size*7,y/size*7)-.5)*2*mottle;
-  const fine=(rand()-.5)*2*grainStrength;
-  const pit=rand()<pitChance?-(10+rand()*18):0;
-  const shade=broad+fine+pit;
-  cImg.data[i]=THREE.MathUtils.clamp(br+shade,0,255);
-  cImg.data[i+1]=THREE.MathUtils.clamp(bg+shade,0,255);
-  cImg.data[i+2]=THREE.MathUtils.clamp(bb+shade,0,255);
-  cImg.data[i+3]=255;
-  // Relief stays broader and smoother than the colour speckle: subtle grain
-  // to the eye, but a clearly tactile, non-flat surface under grazing light.
-  const relief=(fbm(noise,x/size*13,y/size*13)-.5)*34+(rand()-.5)*10+(pit*1.1);
-  const bump=THREE.MathUtils.clamp(128+relief+broad*1.2,0,255);
-  bImg.data[i]=bImg.data[i+1]=bImg.data[i+2]=bump;bImg.data[i+3]=255;
+function makeDecalTexture(renderer){
+ const S=2048,k=S/1600,canvas=document.createElement('canvas');canvas.width=canvas.height=S;
+ const g=canvas.getContext('2d');g.scale(k,k);g.fillStyle=g.strokeStyle='#fff';g.lineJoin='round';
+ // Centre mark: two split panels.
+ g.lineWidth=2.6;
+ const panel=(x0,x1,y0,y1,splitA,splitB)=>{g.beginPath();g.moveTo(x0,y0);g.lineTo(x1,y0);g.lineTo(x1,splitB);g.lineTo(x0,splitA);g.closePath();g.stroke();g.beginPath();g.moveTo(x0,splitA+26);g.lineTo(x1,splitB+26);g.lineTo(x1,y1);g.lineTo(x0,y1);g.closePath();g.stroke();};
+ panel(662,788,621,978,830,790);panel(812,938,621,978,700,745);
+ const tex=new THREE.CanvasTexture(canvas);tex.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());tex.minFilter=THREE.LinearMipmapLinearFilter;tex.generateMipmaps=true;tex.needsUpdate=true;
+ return tex;
+}
+
+// GLSL: granular powder-coat relief, evaluated analytically per pixel and
+// band-limited by the pixel footprint. Octaves too fine for the current pixel
+// fade out and are converted into extra microfacet roughness, so the plate
+// keeps its matte sparkle at a distance without any moiré.
+const PEI_COMMON=/* glsl */`
+varying vec2 vPeiPos;varying vec2 vPeiUv;varying vec3 vPeiTx;varying vec3 vPeiTy;varying float vPeiTop;
+uniform sampler2D uPeiDecal;uniform vec3 uPeiDecalColor;uniform float uPeiBump;uniform float uPeiFreq;uniform float uPeiDecalAlpha;uniform float uPeiSpeckle;
+vec2 peiHash(vec2 p){vec3 q=fract(vec3(p.xyx)*vec3(.1031,.1030,.0973));q+=dot(q,q.yzx+33.33);return fract((q.xx+q.yz)*q.zy);}
+vec3 peiGranules(vec2 x){
+ vec2 i=floor(x),f=fract(x);vec3 acc=vec3(0.);
+ for(int yy=-1;yy<=1;yy++)for(int xx=-1;xx<=1;xx++){
+  vec2 c=vec2(float(xx),float(yy)),h=peiHash(i+c),d=c+.15+h*.7-f;
+  float r=.5+.38*fract(h.x*31.7+h.y*7.1),q=1.-dot(d,d)/(r*r);
+  if(q>0.){float a=.55+.45*h.y;acc.x+=a*q*q;acc.yz+=a*4.*q*d/(r*r);}
  }
- cctx.putImageData(cImg,0,0);bctx.putImageData(bImg,0,0);
- const maxAniso=Math.min(8,renderer.capabilities.getMaxAnisotropy());
- const repeat=variant==='smooth'?2:3;
- const map=new THREE.CanvasTexture(colorCanvas);map.colorSpace=THREE.SRGBColorSpace;
- const bump=new THREE.CanvasTexture(bumpCanvas);
- for(const tex of [map,bump]){tex.wrapS=tex.wrapT=THREE.RepeatWrapping;tex.repeat.set(repeat,repeat);tex.anisotropy=maxAniso;tex.minFilter=THREE.LinearMipmapLinearFilter;tex.magFilter=THREE.LinearFilter;tex.needsUpdate=true;}
- return {map,bump};
+ return acc;
+}
+float peiValue(vec2 p){vec2 i=floor(p),f=fract(p),u=f*f*(3.-2.*f);float a=peiHash(i).x,b=peiHash(i+vec2(1,0)).x,c=peiHash(i+vec2(0,1)).x,d=peiHash(i+vec2(1,1)).x;return mix(mix(a,b,u.x),mix(c,d,u.x),u.y);}
+`;
+
+function peiMaterial(decal){
+ const mat=new THREE.MeshPhysicalMaterial({color:'#c39a55',roughness:.62,metalness:.22,envMapIntensity:.55,specularIntensity:.6});
+ const uniforms={uPeiDecal:{value:decal},uPeiDecalColor:{value:new THREE.Color('#e4e1da')},uPeiBump:{value:.028},uPeiFreq:{value:4.2},uPeiDecalAlpha:{value:.82},uPeiSpeckle:{value:.16}};
+ mat.userData.uniforms=uniforms;
+ mat.onBeforeCompile=shader=>{
+  Object.assign(shader.uniforms,uniforms);
+  shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec2 vPeiPos;varying vec2 vPeiUv;varying vec3 vPeiTx;varying vec3 vPeiTy;varying float vPeiTop;')
+   .replace('#include <begin_vertex>','#include <begin_vertex>\nvPeiPos=position.xy;vPeiUv=uv;vPeiTop=step(.5,normal.z);vPeiTx=normalize((modelViewMatrix*vec4(1.,0.,0.,0.)).xyz);vPeiTy=normalize((modelViewMatrix*vec4(0.,1.,0.,0.)).xyz);');
+  shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\n'+PEI_COMMON)
+   .replace('#include <map_fragment>',`#include <map_fragment>
+ vec2 peiGrad=vec2(0.);float peiLost=0.,peiH=0.;
+ float peiFp=max(length(dFdx(vPeiPos)),length(dFdy(vPeiPos)));
+ {float f=uPeiFreq,amp=1.,norm=0.;
+  for(int o=0;o<3;o++){
+   float vis=1.-smoothstep(.16,.42,peiFp*f);
+   vec3 g=peiGranules(vPeiPos*f+vec2(float(o)*17.3,float(o)*5.9));
+   peiGrad+=g.yz*f*amp*vis;peiH+=(g.x-.45)*amp*vis;peiLost+=amp*(1.-vis);norm+=amp;
+   f*=2.35;amp*=.55;
+  }
+  peiLost/=norm;}
+ float peiMottle=peiValue(vPeiPos*.06)*.6+peiValue(vPeiPos*.21)*.4;
+ vec4 peiDec=texture2D(uPeiDecal,vPeiUv);float peiInk=peiDec.a*uPeiDecalAlpha*vPeiTop;
+ diffuseColor.rgb*=1.+(peiMottle-.5)*.07+peiH*uPeiSpeckle*.5;
+ diffuseColor.rgb=mix(diffuseColor.rgb,uPeiDecalColor,peiInk);`)
+   .replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
+ roughnessFactor=clamp(roughnessFactor+peiLost*.14-peiInk*.12,.05,1.);`)
+   .replace('#include <metalnessmap_fragment>','#include <metalnessmap_fragment>\n metalnessFactor*=1.-peiInk;')
+   .replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
+ if(vPeiTop>.5){float b=uPeiBump*(1.-peiInk*.7);normal=normalize(normal-b*(peiGrad.x*vPeiTx+peiGrad.y*vPeiTy));}`);
+ };
+ mat.customProgramCacheKey=()=>'pei-v2';
+ return mat;
 }
 
-function makeFloorTexture(renderer){
- const size=256,rand=mulberry32(555),canvas=document.createElement('canvas');canvas.width=canvas.height=size;
- const ctx=canvas.getContext('2d'),img=ctx.createImageData(size,size);
- for(let i=0;i<img.data.length;i+=4){const n=58+(rand()-.5)*14;img.data[i]=img.data[i+1]=img.data[i+2]=n;img.data[i+3]=255;}
- ctx.putImageData(img,0,0);
- const tex=new THREE.CanvasTexture(canvas);tex.wrapS=tex.wrapT=THREE.RepeatWrapping;tex.repeat.set(10,10);tex.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());tex.minFilter=THREE.LinearMipmapLinearFilter;tex.needsUpdate=true;return tex;
-}
-
-// Powder-coated PEI is a dielectric surface: low metalness and high roughness
-// keep the grain readable instead of mirroring the studio environment.
+// Bambu-style plate finishes. "freq" is granules per mm, "bump" the relief depth.
 const STYLE_PRESETS={
- gold:{base:'#b8894c',roughness:.74,metalness:.12,bumpScale:.075},
- dark:{base:'#2c3035',roughness:.76,metalness:.1,bumpScale:.065},
- smooth:{base:'#16191d',roughness:.3,metalness:.08,bumpScale:.016},
+ gold:{base:'#a9864c',roughness:.62,metalness:.18,bump:.03,freq:4.2,speckle:.22,decal:'#d9d5cb',decalAlpha:.72},
+ dark:{base:'#2d3136',roughness:.66,metalness:.12,bump:.03,freq:4.6,speckle:.35,decal:'#a9afb6',decalAlpha:.7},
+ smooth:{base:'#1b1e22',roughness:.24,metalness:.05,bump:.0018,freq:1.2,speckle:.05,decal:'#c9cdd2',decalAlpha:.7},
+ cool:{base:'#3d4a55',roughness:.38,metalness:.1,bump:.004,freq:2.2,speckle:.05,decal:'#d8dee4',decalAlpha:.75},
 };
 
 export function createBuildPlate(renderer,onChange){
  const group=new THREE.Group();
- const floorTex=makeFloorTexture(renderer);
- const top=new THREE.MeshStandardMaterial({color:'#b28b47',roughness:.74,metalness:.12,envMapIntensity:.4});
- const edge=new THREE.MeshStandardMaterial({color:'#403b32',roughness:.55,metalness:.45,envMapIntensity:.55});
- const plate=new THREE.Mesh(plateGeometry(),[top,edge]);plate.receiveShadow=true;group.add(plate);
- const floor=new THREE.Mesh(new THREE.PlaneGeometry(1800,1800),new THREE.MeshStandardMaterial({color:'#ffffff',roughness:.92,metalness:.05,envMapIntensity:.45,bumpMap:floorTex,bumpScale:.012}));floor.position.z=-.73;floor.receiveShadow=true;group.add(floor);
+ const top=peiMaterial(makeDecalTexture(renderer));
+ const edge=new THREE.MeshStandardMaterial({color:'#2b2a28',roughness:.42,metalness:.6,envMapIntensity:.7});
+ const plate=new THREE.Mesh(plateGeometry(),[top,edge]);plate.receiveShadow=true;plate.castShadow=true;group.add(plate);
  let style='gold';
  function apply(){
   plate.visible=style!=='shadow';
-  if(style==='shadow'){onChange();return;}
-  const preset=STYLE_PRESETS[style]||STYLE_PRESETS.gold;
-  const {map,bump}=makePeiTextures(renderer,preset.base,style);
-  for(const old of [top.map,top.bumpMap,top.roughnessMap])if(old)old.dispose();
-  top.color.set('#ffffff');top.map=map;top.bumpMap=bump;top.roughnessMap=bump;
-  top.roughness=preset.roughness;top.metalness=preset.metalness;top.bumpScale=preset.bumpScale;top.envMapIntensity=.4;top.needsUpdate=true;
+  const p=STYLE_PRESETS[style]||STYLE_PRESETS.gold,u=top.userData.uniforms;
+  top.color.set(p.base);top.roughness=p.roughness;top.metalness=p.metalness;
+  u.uPeiBump.value=p.bump;u.uPeiFreq.value=p.freq;u.uPeiSpeckle.value=p.speckle;u.uPeiDecalColor.value.set(p.decal);u.uPeiDecalAlpha.value=p.decalAlpha;
   onChange();
  }
  apply();
- return {group,setStyle(next){style=next;apply();},setSize(size){plate.geometry.dispose();plate.geometry=plateGeometry(size);onChange();},setPosition(x,y){plate.position.set(x,y,0);},setFloor(color){floor.material.color.set(color);}};
+ return {group,plate,setStyle(next){style=next;apply();},setSize(size){plate.geometry.dispose();plate.geometry=plateGeometry(size);onChange();},setPosition(x,y){plate.position.set(x,y,0);}};
 }

@@ -1,1 +1,81 @@
-<!doctype html><html lang="zh-CN"><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Layer Studio · 打印动画</title><body><header><b><i>◒</i> LAYER <span>STUDIO</span></b><small>G-CODE 动画工作室</small><div class="spacer"></div><button id="open">打开切片文件</button><button id="sample">三色示例</button><button id="save">保存场景</button><button id="load">载入场景</button><button id="export" class="primary">导出视频 ↗</button></header><main><section id="stage"><div id="badges"><span id="filename">三色花瓶 · 示例</span><span id="stats">正在准备…</span></div><div id="hint">拖动旋转 · 滚轮缩放 · 右键平移</div><div id="notice"></div><div id="progress" hidden><b id="progressText"></b><progress max="1" value="0"></progress><button id="cancel">取消导出</button></div></section><aside><div class="section"><label class="eyebrow">01 / 耗材与表面</label><h2>每一层，都有质感。</h2><div id="palette"></div><label>表面材质<select id="finish"><option value="satin">缎面塑料</option><option value="matte">哑光塑料</option><option value="gloss">亮面塑料</option><option value="silk">丝绸高光</option></select></label><label>网格精度<select id="quality"><option value="auto">自动 · 按文件规模</option><option value="low">低 · 更轻快</option><option value="medium">中 · 均衡</option><option value="high">高 · 精细层纹</option><option value="ultra">超精细 · 微距展示</option></select></label><p id="meshStats"></p><label>挤出线宽<input id="beadWidth" type="range" min="0.8" max="1.15" step="0.01" value="1"></label><label>层间间隙（毫米）<input id="layerGap" type="number" min="0" max="0.04" step="0.002" value="0.008"></label><label>打印板<select id="plateStyle"><option value="gold">拓竹金色纹理 PEI · 精细颗粒</option><option value="dark">深色纹理 PEI</option><option value="smooth">光滑黑板</option><option value="shadow">仅影棚地面</option></select></label><label class="check"><input id="purge" type="checkbox">显示擦料塔 / 起始线</label><label class="check"><input id="support" type="checkbox" checked>显示支撑</label></div><div class="section"><label class="eyebrow">02 / 影棚灯光</label><label>布光<select id="lighting"><option value="studio">柔光影棚</option><option value="dramatic">戏剧侧光</option><option value="warm">暖调日光</option></select></label><label>曝光 <output id="exposureVal">0.8</output><input id="exposure" type="range" min="0.5" max="1.6" step="0.05" value="0.8"></label><label>阴影柔和度<input id="softness" type="range" min="1" max="5" step=".5" value="3"></label><label class="check"><input id="ao" type="checkbox" checked>环境遮蔽 GTAO · 层间阴影更干净</label><label class="check"><input id="dof" type="checkbox">微距景深 · 导出更慢</label><label>背景预设<select id="bgPreset"><option value="#0b0d10" selected>深邃纯黑（默认）</option><option value="#191c20">深石墨灰</option><option value="#222b35">影棚蓝灰</option><option value="custom">自定义</option></select></label><label>背景颜色<input id="background" type="color" value="#0b0d10"></label></div><div class="section"><label class="eyebrow">03 / 相机编排</label><label>运动模式<select id="camera"><option value="rise">缓慢环绕 ＋ 随打印高度抬升</option><option value="orbit">缓慢环绕</option><option value="fixed">固定机位</option><option value="keys">自定义关键帧</option></select></label><label>环绕角度<input id="orbit" type="range" min="0" max="360" value="100"></label><button id="key">＋ 保存当前视角为关键帧</button><div id="keys"></div></div><div class="section"><label class="eyebrow">04 / 成片设置</label><label>导出抗锯齿<select id="aaQuality"><option value="standard">标准 · 原尺寸渲染（最快）</option><option value="high" selected>高 · 1.5× 超采样（推荐）</option><option value="ultra">极致 · 2× 超采样（最慢）</option></select></label><label>分辨率<select id="resolution"><option value="720">1280 × 720</option><option value="1080" selected>1920 × 1080</option></select></label><label>时长（含前后停留）<input id="duration" type="number" min="4" max="120" value="20"></label><label>生长方式<select id="growth"><option value="path">沿挤出路径连续生长</option><option value="layer">逐层生长</option></select></label><label>保存方式<select id="destination"><option value="download">生成后下载（推荐）</option><option value="disk">直接写入磁盘</option></select></label><p id="exportStatus" role="status"></p><div id="exportResult" hidden><video id="resultVideo" controls playsinline></video><a id="videoDownload">下载视频</a></div><p>30 FPS · 无水印 · 本机逐帧渲染<br>开头停留 0.5 秒，成品停留 2 秒。</p></div></aside></main><footer><button id="reset">↤</button><button id="play" class="primary">▶</button><input id="timeline" type="range" min="0" max="1" step=".0001" value="1"><span id="time">20.0 / 20.0 s</span><span id="layer">100%</span></footer><input id="file" type="file" accept=".gcode,.gcode.3mf,.3mf" hidden><input id="sceneFile" type="file" accept=".json" hidden><script type="module" src="/src/main.js"></script></body></html>
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Layer Studio · 打印动画</title>
+<link rel="stylesheet" href="/src/style.css">
+</head>
+<body>
+<header>
+ <b class="brand"><i>◒</i> LAYER <span>STUDIO</span></b><small>G-CODE 打印动画渲染工作室</small>
+ <div class="spacer"></div>
+ <button id="open">打开切片文件</button><button id="sample">三色示例</button><button id="save">保存场景</button><button id="load">载入场景</button><button id="export" class="primary">导出视频 ↗</button>
+</header>
+<main>
+ <section id="stage">
+  <div id="badges"><span id="filename">三色花瓶 · 示例</span><span id="stats">正在准备…</span><span id="samples"></span></div>
+  <div id="hint">拖动旋转 · 滚轮缩放 · 右键平移 · 静止后自动渐进抗锯齿</div>
+  <div id="notice"></div>
+  <div id="progress" hidden><b id="progressText"></b><progress max="1" value="0"></progress><small id="progressEta"></small><button id="cancel">取消导出</button></div>
+ </section>
+ <aside>
+  <div class="section">
+   <label class="eyebrow">01 / 场景</label>
+   <h2>把打印件放进故事里。</h2>
+   <label>场景预设<select id="scene"></select></label>
+   <label>背景颜色<span class="row"><input id="background" type="color" value="#c9ccd0"><button id="bgReset" class="ghost">恢复场景默认</button></span></label>
+  </div>
+  <div class="section">
+   <label class="eyebrow">02 / 耗材与表面</label>
+   <div id="palette"></div>
+   <label>表面材质<select id="finish"><option value="satin">缎面 PLA</option><option value="matte">哑光 PLA</option><option value="gloss">高光 PETG</option><option value="silk">丝绸 PLA · 金属光泽</option><option value="basic">基础 PLA · 柔和</option></select></label>
+   <label>网格精度<select id="quality"><option value="auto">自动 · 按文件规模</option><option value="draft">草稿 · 超大文件</option><option value="low">低 · 更轻快</option><option value="medium">中 · 均衡</option><option value="high">高 · 精细层纹</option><option value="ultra">超精细 · 微距展示</option></select></label>
+   <p id="meshStats"></p>
+   <label>挤出线宽 <output id="beadWidthVal">1.00</output><input id="beadWidth" type="range" min="0.8" max="1.15" step="0.01" value="1"></label>
+   <label>层间间隙（毫米）<input id="layerGap" type="number" min="0" max="0.04" step="0.002" value="0.008"></label>
+   <label>打印板<select id="plateStyle"><option value="gold">拓竹金色纹理 PEI · 磨砂颗粒</option><option value="dark">拓竹黑色纹理 PEI</option><option value="smooth">光滑 PEI · 深色</option><option value="cool">低温板 · 雾面</option><option value="shadow">不显示打印板</option></select></label>
+   <label class="check"><input id="retract" type="checkbox" checked>显示回抽点 / 接缝凸点</label>
+   <label>回抽点大小 <output id="retractSizeVal">1.00</output><input id="retractSize" type="range" min="0.4" max="3" step="0.05" value="1"></label>
+   <label>回抽点颜色<select id="retractColor"><option value="filament">耗材同色 · 真实小球</option><option value="marker">白色标记点（切片软件预览）</option><option value="red">红色标记点</option></select></label>
+   <p id="retractStats"></p>
+   <label class="check"><input id="purge" type="checkbox">显示擦料塔 / 起始线</label>
+   <label class="check"><input id="support" type="checkbox" checked>显示支撑</label>
+  </div>
+  <div class="section">
+   <label class="eyebrow">03 / 灯光与画质</label>
+   <label>布光风格<select id="lighting"><option value="studio">场景默认 · 柔光</option><option value="dramatic">戏剧侧光 · 强对比</option><option value="warm">暖调日光</option><option value="cool">冷调月光</option></select></label>
+   <label>曝光 <output id="exposureVal">1.00</output><input id="exposure" type="range" min="0.4" max="1.6" step="0.02" value="1"></label>
+   <label>阴影柔和度（面光源尺寸）<output id="softnessVal">3</output><input id="softness" type="range" min="0" max="8" step=".5" value="3"></label>
+   <label>辉光强度 <output id="bloomVal">1.00</output><input id="bloom" type="range" min="0" max="2" step="0.05" value="1"></label>
+   <label>暗角 <output id="vignetteVal">1.00</output><input id="vignette" type="range" min="0" max="2" step="0.05" value="1"></label>
+   <label class="check"><input id="ao" type="checkbox" checked>环境遮蔽 GTAO · 层间阴影</label>
+   <label class="check"><input id="dof" type="checkbox">微距景深 · 物理光圈</label>
+   <label>光圈大小 <output id="apertureVal">1.00</output><input id="aperture" type="range" min="0.2" max="3" step="0.05" value="1"></label>
+   <label>预览渐进采样<select id="previewSamples"><option value="1">关闭 · 最省电</option><option value="8">8 次</option><option value="16" selected>16 次（推荐）</option><option value="32">32 次 · 静帧级</option></select></label>
+  </div>
+  <div class="section">
+   <label class="eyebrow">04 / 相机编排</label>
+   <label>运动模式<select id="camera"><option value="rise">缓慢环绕 ＋ 随打印高度抬升</option><option value="orbit">缓慢环绕</option><option value="fixed">固定机位</option><option value="keys">自定义关键帧</option></select></label>
+   <label>环绕角度 <output id="orbitVal">100°</output><input id="orbit" type="range" min="0" max="360" value="100"></label>
+   <button id="key">＋ 保存当前视角为关键帧</button>
+   <div id="keys"></div>
+  </div>
+  <div class="section">
+   <label class="eyebrow">05 / 成片设置</label>
+   <label>导出抗锯齿（每帧累积采样）<select id="aaQuality"><option value="standard">标准 · 4 次采样（最快）</option><option value="high" selected>高 · 12 次采样（推荐）</option><option value="ultra">极致 · 24 次采样</option><option value="cinema">电影级 · 48 次采样（最慢）</option></select></label>
+   <label>分辨率<select id="resolution"><option value="720">1280 × 720 · HD</option><option value="1080">1920 × 1080 · Full HD</option><option value="1440" selected>2560 × 1440 · 2K</option><option value="2160">3840 × 2160 · 4K UHD</option></select></label>
+   <label>时长（含前后停留，秒）<input id="duration" type="number" min="4" max="120" value="20"></label>
+   <label>生长方式<select id="growth"><option value="path">沿挤出路径连续生长</option><option value="layer">逐层生长</option></select></label>
+   <label>保存方式<select id="destination"><option value="download">生成后下载（推荐）</option><option value="disk">直接写入磁盘</option></select></label>
+   <p id="exportStatus" role="status"></p>
+   <div id="exportResult" hidden><video id="resultVideo" controls playsinline></video><a id="videoDownload">下载视频</a></div>
+   <p>30 FPS · 无水印 · 本机逐帧渲染<br>每帧多次亚像素抖动累积，消除层纹摩尔纹；开头停留 0.5 秒，成品停留 2 秒。</p>
+  </div>
+ </aside>
+</main>
+<footer><button id="reset" title="回到开头">↤</button><button id="play" class="primary">▶</button><input id="timeline" type="range" min="0" max="1" step=".0001" value="1"><span id="time">20.0 / 20.0 s</span><span id="layer">100%</span></footer>
+<input id="file" type="file" accept=".gcode,.gcode.3mf,.3mf" hidden><input id="sceneFile" type="file" accept=".json" hidden>
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>

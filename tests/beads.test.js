@@ -44,6 +44,12 @@ test('closed square perimeter uses a shared miter at its seam without end caps',
  assert.equal(r.stats.vertices,5*ring);assert.equal(r.stats.triangles,4*ring*2);
  for(let j=0;j<ring*3;j++)assert.equal(p[j],p[4*ring*3+j]);
 });
+test('draft profile uses four vertices and still covers most of the bead width',()=>{
+ const r=buildBeadChunks(straight,{quality:'draft',layerGap:0}),p=r.chunks[0].geometry.attributes.position.array;
+ assert.equal(r.stats.profileVertices,4);
+ let maxY=0;for(let i=1;i<p.length;i+=3)maxY=Math.max(maxY,Math.abs(p[i]));
+ assert.ok(maxY>.45*.4&&maxY<=.225+1e-6);assert.ok([...p].every(Number.isFinite));
+});
 test('rejects nonfinite dimensions before GPU buffer allocation',()=>{
  assert.throws(()=>buildBeadChunks([{...straight[0],width:Infinity}]),/Invalid extrusion/);
 });

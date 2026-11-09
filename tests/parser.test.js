@@ -1,7 +1,7 @@
 import {existsSync, readFileSync} from 'node:fs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {parse} from '../src/parser.js';
+import {parse, pack, unpack, simplify, transferables} from '../src/parser.js';
 test('same layer colors, reserved tools and travel',()=>{const r=parse('; filament_colour = #ff0000;#00ff00\nG90\nM83\nG1 X0 Y0 Z0.2\nG1 X10 E1\nT1\nG1 Y10 E1\nT255\nG1 X0 E1\nG1 E-1\nG1 X5\nG1 E1');assert.equal(r.segments.length,3);assert.deepEqual(r.segments.map(s=>s.tool),[0,1,1]);assert.equal(r.layers,1);});
 test('absolute E reset and Z hop do not deposit',()=>{const r=parse('M82\nG1 Z0.2\nG1 X10 E1\nG92 E0\nG1 Z1\nG1 X20\nG1 Z0.2\nG1 X30 E1');assert.equal(r.segments.length,2);assert.equal(r.layers,1);});
 test('I/J full circle deposits and R arc is rejected explicitly',()=>{const r=parse('M83\nG1 X10 Y0 Z0.2\nG3 X10 Y0 I-10 J0 E1');assert.ok(r.segments.length>20);assert.throws(()=>parse('M83\nG1 Z.2\nG2 X10 Y10 R10 E1'),/R 格式/);});
@@ -24,6 +24,29 @@ test('metadata colors keep empty slots and printable area is measured',()=>{
 
 test('rounded I/J endpoint meets the next line exactly',()=>{
  const r=parse('M83\nG1 X1 Y0 Z.2\nG3 X0 Y1 I-1.0001 J0 E1\nG1 X-1 Y1 E1');const a=r.segments.at(-2),b=r.segments.at(-1);assert.deepEqual(a.b,b.a);assert.equal(a.pathId,b.pathId);
+});
+
+test('a retraction records one seam blob at the end of the last bead, wipe-retracts count once',()=>{
+ const r=parse('M83\n; FEATURE: Outer wall\nG1 Z.2\nG1 X10 Y0 E1\nG1 X10 Y10 E1\nG1 X9 Y9 E-.3\nG1 X8 Y8 E-.3\nG1 X20 Y20\nG1 E.6\nG1 X30 Y20 E1');
+ assert.equal(r.retracts.length,1);const b=r.retracts[0];
+ assert.deepEqual(b.p,[10,10,.2]);assert.deepEqual(b.dir,[0,1]);assert.equal(b.feature,'Outer wall');assert.equal(b.end,r.segments[1].end);
+ assert.equal(r.segments.length,3);
+});
+test('travel-only retractions far from the last bead leave no blob',()=>{
+ const r=parse('M83\nG1 Z.2\nG1 X10 E1\nG1 X50 Y50\nG1 E-.8');assert.equal(r.retracts.length,0);
+});
+test('packed transfer round-trips segments, retractions and metadata exactly',()=>{
+ const r=parse('; filament_colour = #ff0000;#00ff00\nM83\n; FEATURE: Outer wall\nG1 Z.2\nG1 X10 E1\nG1 Y10 E1\nG1 E-1\nT1\nG1 X0 E2\nG1 E-1');
+ const p=pack(r);assert.equal(transferables(p).length,4);
+ const u=unpack(structuredClone(p));
+ assert.deepEqual(u.segments,r.segments);assert.deepEqual(u.retracts,r.retracts);assert.equal(u.layers,r.layers);assert.deepEqual(u.colors,r.colors);
+});
+test('simplify merges collinear moves of one bead but keeps corners, paths and timing',()=>{
+ const r=parse('M83\nG1 Z.2\nG1 X1 E.1\nG1 X2 E.1\nG1 X3.001 Y.001 E.1\nG1 X3 Y5 E.5\nG1 E-1\nG1 X4 Y5\nG1 E1\nG1 X5 Y5 E.1');
+ const s=simplify(r.segments,.01);
+ assert.equal(s.length,3);
+ assert.deepEqual(s[0].b,[3.001,.001,.2]);assert.equal(s[0].end,r.segments[2].end);
+ assert.equal(s.at(-1).end,r.segments.at(-1).end);assert.notEqual(s[1].pathId,s[2].pathId);
 });
 
 const realFile=new URL('../小船_PLA_42m30s.gcode',import.meta.url);
