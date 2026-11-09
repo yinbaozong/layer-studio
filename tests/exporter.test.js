@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {Quality, canEncodeVideo, VideoSampleSource} from 'mediabunny';
-import {createVideoConfig, probeEncoding, exportVideo} from '../src/exporter.js';
+import {createVideoConfig, probeEncoding, exportVideo, RESOLUTIONS} from '../src/exporter.js';
 
 test('SDK reproduces numeric-quality rejection and accepts the exported 720/1080 configurations',async()=>{
  await assert.rejects(canEncodeVideo('avc',{width:1920,height:1080,frameRate:30,quality:12000000}),/must be a Quality/);
@@ -15,6 +15,14 @@ test('SDK reproduces numeric-quality rejection and accepts the exported 720/1080
   const {width,height:ignoredHeight,frameRate,...sourceConfig}=config;
   assert.doesNotThrow(()=>new VideoSampleSource(sourceConfig));
  }
+});
+test('1440p and 4K presets have matching widths and higher bitrates',()=>{
+ const q=createVideoConfig(1440,'avc'),u=createVideoConfig(2160,'vp9'),f=createVideoConfig(1080,'avc');
+ assert.equal(q.width,2560);assert.equal(u.width,3840);assert.equal(u.height,2160);
+ assert.ok(u.quality instanceof Quality);
+ assert.throws(()=>createVideoConfig(900,'avc'),RangeError);
+ assert.ok(RESOLUTIONS[2160].bitrate>RESOLUTIONS[1440].bitrate&&RESOLUTIONS[1440].bitrate>RESOLUTIONS[1080].bitrate);
+ assert.equal(f.width,1920);
 });
 test('probes full resolution and falls back explicitly to WebM',async()=>{
  const calls=[];

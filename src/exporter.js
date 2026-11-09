@@ -5,14 +5,24 @@ import {
 
 const sdkDefaults={Output,Mp4OutputFormat,WebMOutputFormat,CanvasSource,StreamTarget,BufferTarget};
 
+// Bitrates are generous on purpose: dense layer lines are high-frequency detail
+// that a starved encoder turns into shimmering blocks.
+export const RESOLUTIONS=Object.freeze({
+  720:{width:1280,bitrate:10_000_000},
+  1080:{width:1920,bitrate:20_000_000},
+  1440:{width:2560,bitrate:34_000_000},
+  2160:{width:3840,bitrate:60_000_000},
+});
+
 /** One configuration is shared by capability probing and actual encoding. */
 export function createVideoConfig(height=1080,codec='avc') {
-  if(![720,1080].includes(Number(height))) throw new RangeError('请选择 720p 或 1080p。');
+  const preset=RESOLUTIONS[Number(height)];
+  if(!preset) throw new RangeError('请选择 720p / 1080p / 1440p / 4K。');
   if(!['avc','vp9','vp8'].includes(codec)) throw new RangeError('不支持的视频编码格式。');
   height=Number(height);
   return {
-    codec,width:height===1080?1920:1280,height,frameRate:30,
-    quality:new Quality({bitrate:height===1080?12000000:7000000}),
+    codec,width:preset.width,height,frameRate:30,
+    quality:new Quality({bitrate:preset.bitrate}),
     keyFrameInterval:2,latencyMode:'quality',hardwareAcceleration:'no-preference',
   };
 }
@@ -26,7 +36,7 @@ export async function probeEncoding(height=1080,{canEncode=canEncodeVideo}={}) {
       codec,ext:codec==='avc'?'mp4':'webm',mime:codec==='avc'?'video/mp4':'video/webm',config,
     };
   }
-  throw new Error('当前浏览器无法编码所选分辨率。请使用新版 Chrome / Edge，或尝试 720p。');
+  throw new Error('当前浏览器无法编码所选分辨率。请使用新版 Chrome / Edge，或降低分辨率。');
 }
 
 const abortError=()=>new DOMException('已取消导出，未保存不完整视频。','AbortError');

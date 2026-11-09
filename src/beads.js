@@ -2,7 +2,7 @@ import {BufferAttribute, BufferGeometry} from 'three';
 
 // Number of samples around both rounded sides. Two additional vertices form
 // the genuinely flat crown and underside; these are not elliptical tubes.
-export const QUALITY_LEVELS = Object.freeze({low:4, medium:8, high:12, ultra:16});
+export const QUALITY_LEVELS = Object.freeze({draft:2, low:4, medium:8, high:12, ultra:16});
 const EPS=1e-5;
 const distance=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2]);
 function direction(s){const dx=s.b[0]-s.a[0],dy=s.b[1]-s.a[1],len=Math.hypot(dx,dy);return [dx/len,dy/len,len];}
@@ -25,8 +25,11 @@ function valid(s){return s&&s.a?.length===3&&s.b?.length===3&&s.a.every(Number.i
  */
 export function buildBeadChunks(segments,options={}){
  const quality=typeof options.quality==='number'?options.quality:QUALITY_LEVELS[options.quality??'medium'];
- if(!Number.isFinite(quality)||quality<4||quality>64)throw Error('Unknown bead quality');
- const arcSteps=Math.max(2,Math.round(quality/2)),ringSize=2*(arcSteps+1);
+ if(!Number.isFinite(quality)||quality<2||quality>64)throw Error('Unknown bead quality');
+ const arcSteps=Math.max(1,Math.round(quality/2)),ringSize=2*(arcSteps+1);
+ // A one-step arc would collapse to the flat core; pull its two samples inward
+ // so the 4-vertex draft profile still covers ~85% of the bead width.
+ const arcInset=arcSteps===1?Math.PI/5:0;
  const widthScale=options.widthScale??1,layerGap=options.layerGap??.008;
  const maxSegments=Math.max(1,Math.floor(options.maxSegmentsPerChunk??2048)),miterLimit=options.miterLimit??2;
  if(!Number.isFinite(maxSegments)||!Number.isFinite(miterLimit)||miterLimit<1)throw Error('Invalid bead chunk or miter limit');
@@ -43,7 +46,7 @@ export function buildBeadChunks(segments,options={}){
   start=end+1;
  }
  const profile=[];
- for(let side=0;side<2;side++)for(let j=0;j<=arcSteps;j++){const angle=-Math.PI/2+side*Math.PI+j/arcSteps*Math.PI;profile.push([Math.cos(angle),Math.sin(angle),side===0?1:-1]);}
+ for(let side=0;side<2;side++)for(let j=0;j<=arcSteps;j++){const angle=-Math.PI/2+arcInset+side*Math.PI+j/arcSteps*(Math.PI-2*arcInset);profile.push([Math.cos(angle),Math.sin(angle),side===0?1:-1]);}
  const chunks=[];
  for(let start=0;start<indices.length;){let end=start+1;const tool=segments[indices[start]].tool;
   while(end<indices.length&&end-start<maxSegments&&segments[indices[end]].tool===tool)end++;
